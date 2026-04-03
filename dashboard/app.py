@@ -184,12 +184,16 @@ def get_env(task_str, seed_val):
 
 def get_agent(agent_str):
     if agent_str == "Static":
-        return StaticAgent(target_servers=target_servers if 'target_servers' in dir() else 5)
+        servers = target_servers if agent_type == "Static" else 5
+        return StaticAgent(target_servers=servers)
     elif agent_str == "Threshold (HPA)":
+        ht = high_threshold if agent_type == "Threshold (HPA)" else 0.75
+        lt = low_threshold if agent_type == "Threshold (HPA)" else 0.30
+        cd = cooldown if agent_type == "Threshold (HPA)" else 3
         return ThresholdAgent(
-            high_threshold=high_threshold if 'high_threshold' in dir() else 0.75,
-            low_threshold=low_threshold if 'low_threshold' in dir() else 0.30,
-            cooldown_steps=cooldown if 'cooldown' in dir() else 3,
+            high_threshold=ht,
+            low_threshold=lt,
+            cooldown_steps=cd,
         )
     elif agent_str == "Predictive Heuristic":
         return PredictiveHeuristicAgent()

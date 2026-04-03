@@ -76,7 +76,7 @@ def run_llm_episode(
     env,
     task_name: str,
     seed: int = 42,
-    model: str = "gpt-4o-mini",
+    model: str = "meta/llama-3.1-70b-instruct",
     max_retries: int = 3,
     verbose: bool = True,
 ) -> Dict[str, Any]:
@@ -95,13 +95,26 @@ def run_llm_episode(
         Dict with results and grading
     """
     if not HAS_OPENAI:
-        raise ImportError("openai package required. Install with: pip install openai")
+        raise ImportError(
+            "openai package required. Install with: pip install openai\n"
+            "Then set your API key: export OPENAI_API_KEY=nvapi-YOUR_KEY\n"
+            "And base URL:         export OPENAI_BASE_URL=https://integrate.api.nvidia.com/v1"
+        )
 
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
+        raise ValueError(
+            "OPENAI_API_KEY environment variable not set.\n"
+            "Get a free NVIDIA NIM key at: https://build.nvidia.com\n"
+            "Then: export OPENAI_API_KEY=nvapi-YOUR_KEY"
+        )
 
     base_url = os.environ.get("OPENAI_BASE_URL")
+    if base_url:
+        logger.info(f"Using custom API endpoint: {base_url}")
+    else:
+        logger.info("Using default OpenAI endpoint")
+
     client = OpenAI(api_key=api_key, base_url=base_url)
 
     # Reset environment
@@ -185,7 +198,7 @@ def run_llm_episode(
 
 
 def run_all_tasks(
-    model: str = "gpt-4o-mini",
+    model: str = "meta/llama-3.1-70b-instruct",
     seed: int = 42,
     verbose: bool = True,
 ) -> Dict[str, Any]:
@@ -254,7 +267,7 @@ def run_all_tasks(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run LLM baseline agent")
-    parser.add_argument("--model", type=str, default="gpt-4o-mini")
+    parser.add_argument("--model", type=str, default="meta/llama-3.1-70b-instruct")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=str, default="llm_baseline_results.json")
 

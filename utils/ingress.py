@@ -29,7 +29,7 @@ class TrafficState:
                 with open(TRAFFIC_DATA_FILE, "r") as f:
                     data = json.load(f)
                     self.history = deque(data, maxlen=MAX_HISTORICAL_STEPS)
-            except:
+            except (json.JSONDecodeError, IOError):
                 pass
 
     def save_history(self):
