@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+models/checkpoints/
+models/best/
+models/logs/
+models/tb_logs/
+*.zip
+.DS_Store
+.vscode/
+.idea/
+evaluation_results.json
+llm_baseline_results.json

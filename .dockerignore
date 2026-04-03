@@ -1,0 +1,39 @@
+# Version control
+.git
+.gitignore
+
+# Frontend (not needed in backend Docker image)
+frontend/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Model artifacts (large files)
+models/
+*.zip
+
+# Results
+evaluation_results.json
+llm_baseline_results.json
+
+# Environment
+.env
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Docs
+README.md
+.gitkeep
