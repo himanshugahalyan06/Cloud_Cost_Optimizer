@@ -144,21 +144,11 @@ The project includes **5 pre-built agents**:
 
 | Agent | Strategy | Strengths | Weaknesses |
 |-------|----------|-----------|------------|
-| **Static(3)** | Maintains 3 servers | Zero overhead, fixed cost | Fails during spikes (High Drop Rate) |
-| **Static(5)** | Maintains 5 servers | High availability, simple | Wastes budget during low load |
-| **Threshold (HPA)**| CPU-based scaling (industry std) | Simple, reactive, reliable | Always **late** to sudden spikes |
-| **Predictive** | 5-step trend-slope analysis | Proactive — scales before surges | Can over-provision on noise |
-| **Random** | 100% random actions | Theoretical baseline | Catastrophic failure (Control Group) |
-
-### 🪜 The Benchmarking Ladder (Why these agents?)
-
-The five agents above represent a standard "benchmarking ladder" used to prove the **Value Proposition** of AI:
-
-1.  **Static (3 & 5 Servers)** — **Resource Baselines**: Shows what you lose by being fixed. 3 servers = High Dropped Requests; 5 servers = Huge Monetary Waste.
-2.  **Random Agent** — **Noise Control**: The absolute lower bound. If an AI can't beat random choice, it hasn't learned anything. Used to calibrate environment difficulty.
-3.  **Threshold (HPA-like)** — **The Industry Standard**: This is your current competitor. It's how Kubernetes handles scaling today. If AI is to be adopted, it MUST beat this reactive logic.
-4.  **Predictive Heuristic** — **Statistical Limit**: Represents the best a human-written mathematical script can do without "learning." It proves that foresight is better than reaction.
-5.  **AI Agents (DQN/PPO)** — **The Alpha**: The goal is to prove that a learned policy can find the "efficiency sweet spot" that rules and heuristics miss.
+| **Static(3)** | Always maintain 3 servers | Zero scaling overhead | Can't handle spikes at all |
+| **Static(5)** | Always maintain 5 servers | Handles moderate load | Wastes money during low traffic |
+| **Threshold (HPA)** | Scale at CPU > 75%, shrink at < 30% | Industry standard — reactive | Always **late** to spikes |
+| **Predictive** | Looks at traffic trend + anticipates | Proactive — scales before spikes | Over-provisions sometimes |
+| **Random** | Random actions | None | Terrible at everything |
 
 ---
 

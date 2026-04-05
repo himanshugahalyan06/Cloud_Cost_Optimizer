@@ -153,10 +153,8 @@ const Navbar = ({ activeSection, onNavigate }) => {
 
 const Hero = ({ onNavigate }) => (
     <section className="hero" id="home">
+        <div className="hero-scanner" />
         <div className="hero-bg-grid" />
-        <div className="hero-orb hero-orb-1" />
-        <div className="hero-orb hero-orb-2" />
-        <div className="hero-orb hero-orb-3" />
 
         <div className="hero-content">
             <div className="hero-badge">
@@ -247,6 +245,11 @@ const Simulator = () => {
         return () => clearTimeout(timer);
     }, [isAnimating, animStep, result]);
 
+    // Auto-run on mount
+    useEffect(() => {
+        handleRun();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     const visibleData = useMemo(() => {
         if (!result) return [];
         const len = isAnimating ? animStep : result.history.traffic.length;
@@ -267,7 +270,7 @@ const Simulator = () => {
     }, [result, animStep, isAnimating]);
 
     return (
-        <section className="section" id="simulator">
+        <section className="section section-technical" id="simulator">
             <div className="app-container">
                 <h2 className="section-title">🚀 Live Simulator</h2>
                 <p className="section-subtitle">
@@ -499,10 +502,15 @@ const CompareSection = () => {
         ];
     }, [results]);
 
+    // Auto-run comparison on mount
+    useEffect(() => {
+        handleCompare();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     const radarColors = ['#00d2ff', '#764ba2', '#f7971e', '#96c93d', '#eb3349'];
 
     return (
-        <section className="section" id="compare">
+        <section className="section section-technical" id="compare">
             <div className="app-container">
                 <h2 className="section-title">📊 Agent Comparison</h2>
                 <p className="section-subtitle">
@@ -631,7 +639,7 @@ const CompareSection = () => {
 // ═══════════════════════════════════════════════════════════════
 
 const Architecture = () => (
-    <section className="section" id="architecture">
+    <section className="section section-technical" id="architecture">
         <div className="app-container">
             <h2 className="section-title">🏗️ System Architecture</h2>
             <p className="section-subtitle">
@@ -959,7 +967,7 @@ const CompanyPortal = () => {
     };
 
     return (
-        <section className="section" id="portal">
+        <section className="section section-portal" id="portal">
             <div className="app-container">
                 <h2 className="section-title">🏢 Company Agent Portal</h2>
                 <p className="section-subtitle">
