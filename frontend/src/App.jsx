@@ -130,7 +130,7 @@ const Navbar = ({ activeSection, onNavigate }) => {
                     <span className="navbar-tag">AI</span>
                 </div>
                 <ul className="navbar-links">
-                    {['home', 'simulator', 'compare', 'architecture'].map(s => (
+                    {['home', 'simulator', 'compare', 'architecture', 'portal'].map(s => (
                         <li key={s}>
                             <a
                                 href={`#${s}`}
@@ -806,6 +806,648 @@ const Architecture = () => (
 
 
 // ═══════════════════════════════════════════════════════════════
+// Company Agent Portal
+// ═══════════════════════════════════════════════════════════════
+
+const CompanyPortal = () => {
+    const [step, setStep] = useState(0); // 0=register, 1=create, 2=configure, 3=train, 4=results, 5=export
+    const [company, setCompany] = useState({ name: '', industry: '', email: '' });
+    const [agentConfig, setAgentConfig] = useState({
+        name: '',
+        algorithm: 'dqn',
+        traffic: 'steady',
+        description: '',
+    });
+    const [trainingConfig, setTrainingConfig] = useState({
+        steps: 200000,
+        learningRate: 0.001,
+        seed: 42,
+    });
+    const [customTraffic, setCustomTraffic] = useState(null);
+    const [isTraining, setIsTraining] = useState(false);
+    const [trainingProgress, setTrainingProgress] = useState(0);
+    const [trainResult, setTrainResult] = useState(null);
+    const [registeredAgents, setRegisteredAgents] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem('cco_agents') || '[]');
+        } catch { return []; }
+    });
+    const [registeredCompanies, setRegisteredCompanies] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem('cco_companies') || '[]');
+        } catch { return []; }
+    });
+
+    const saveAgent = (agentData) => {
+        const updated = [...registeredAgents, agentData];
+        setRegisteredAgents(updated);
+        localStorage.setItem('cco_agents', JSON.stringify(updated));
+    };
+
+    const saveCompany = (companyData) => {
+        const updated = [...registeredCompanies, companyData];
+        setRegisteredCompanies(updated);
+        localStorage.setItem('cco_companies', JSON.stringify(updated));
+    };
+
+    const handleRegister = () => {
+        if (!company.name.trim()) return;
+        saveCompany({ ...company, registeredAt: new Date().toISOString() });
+        setStep(1);
+    };
+
+    const handleCreateAgent = () => {
+        if (!agentConfig.name.trim()) return;
+        setStep(2);
+    };
+
+    const handleStartTraining = () => {
+        setStep(3);
+        setIsTraining(true);
+        setTrainingProgress(0);
+
+        // Simulate training progress
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 8 + 2;
+            if (progress >= 100) {
+                progress = 100;
+                clearInterval(interval);
+
+                // Run actual simulation to generate scores
+                const profileKey = agentConfig.traffic === 'custom' ? 'spike' : agentConfig.traffic;
+                const agentKey = agentConfig.algorithm === 'dqn' || agentConfig.algorithm === 'ppo'
+                    ? 'predictive' : agentConfig.algorithm === 'threshold' ? 'threshold' : 'predictive';
+
+                const result = runSimulation(profileKey, agentKey, trainingConfig.seed);
+
+                // Run on all profiles for evaluation
+                const allResults = {};
+                ['steady', 'spike', 'chaos'].forEach(prof => {
+                    const r = runSimulation(prof, agentKey, trainingConfig.seed);
+                    allResults[prof] = r.scores;
+                });
+
+                const agentData = {
+                    id: `${company.name.toLowerCase().replace(/\s+/g, '_')}/${agentConfig.name.toLowerCase().replace(/\s+/g, '_')}`,
+                    agentName: agentConfig.name,
+                    companyName: company.name,
+                    algorithm: agentConfig.algorithm,
+                    traffic: agentConfig.traffic,
+                    description: agentConfig.description,
+                    trainingSteps: trainingConfig.steps,
+                    scores: result.scores,
+                    metrics: result.metrics,
+                    allResults,
+                    createdAt: new Date().toISOString(),
+                    status: 'trained',
+                    version: 1,
+                };
+
+                setTrainResult(agentData);
+                saveAgent(agentData);
+                setIsTraining(false);
+                setStep(4);
+            }
+            setTrainingProgress(Math.min(progress, 100));
+        }, 150);
+    };
+
+    const handleExportAgent = () => {
+        if (!trainResult) return;
+        const exportData = {
+            agent_id: trainResult.id,
+            agent_name: trainResult.agentName,
+            company: trainResult.companyName,
+            algorithm: trainResult.algorithm,
+            traffic_profile: trainResult.traffic,
+            scores: trainResult.scores,
+            metrics: trainResult.metrics,
+            all_results: trainResult.allResults,
+            training_config: trainingConfig,
+            created_at: trainResult.createdAt,
+            export_instructions: {
+                "1_install": "pip install -r requirements.txt",
+                "2_start_ingress": "python scripts/ingress_server.py",
+                "3_deploy": `python build_agent.py deploy --company "${trainResult.companyName}" --agent "${trainResult.agentName}"`,
+                "4_monitor": "curl http://localhost:8000/decision",
+            },
+        };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${trainResult.id.replace('/', '_')}_agent_export.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleDeleteAgent = (idx) => {
+        const updated = registeredAgents.filter((_, i) => i !== idx);
+        setRegisteredAgents(updated);
+        localStorage.setItem('cco_agents', JSON.stringify(updated));
+    };
+
+    const resetWizard = () => {
+        setStep(0);
+        setCompany({ name: '', industry: '', email: '' });
+        setAgentConfig({ name: '', algorithm: 'dqn', traffic: 'steady', description: '' });
+        setTrainingConfig({ steps: 200000, learningRate: 0.001, seed: 42 });
+        setTrainResult(null);
+        setIsTraining(false);
+        setTrainingProgress(0);
+    };
+
+    return (
+        <section className="section" id="portal">
+            <div className="app-container">
+                <h2 className="section-title">🏢 Company Agent Portal</h2>
+                <p className="section-subtitle">
+                    Register your company, create a custom AI agent, train it on your traffic patterns,
+                    and deploy it to production — all from here.
+                </p>
+
+                {/* Step Indicator */}
+                <div style={{
+                    display: 'flex', justifyContent: 'center', gap: '8px',
+                    marginBottom: '40px', flexWrap: 'wrap'
+                }}>
+                    {['Register', 'Name Agent', 'Configure', 'Train', 'Results', 'Deploy'].map((label, i) => (
+                        <div key={i} style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                        }}>
+                            <div style={{
+                                width: '32px', height: '32px', borderRadius: '50%',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.8rem', fontWeight: 700,
+                                background: i <= step
+                                    ? 'linear-gradient(135deg, #00d2ff, #3a7bd5)'
+                                    : 'rgba(255,255,255,0.06)',
+                                color: i <= step ? '#fff' : '#5a6180',
+                                transition: 'all 0.3s ease',
+                            }}>
+                                {i < step ? '✓' : i + 1}
+                            </div>
+                            <span style={{
+                                fontSize: '0.75rem',
+                                color: i <= step ? '#ccd6f6' : '#5a6180',
+                                fontWeight: i === step ? 700 : 400,
+                            }}>{label}</span>
+                            {i < 5 && <span style={{ color: '#2a2f4a', margin: '0 4px' }}>→</span>}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Step 0: Register Company */}
+                {step === 0 && (
+                    <div className="sim-panel">
+                        <div className="sim-panel-title" style={{ marginBottom: '24px' }}>
+                            🏢 Step 1: Register Your Company
+                        </div>
+                        <div className="sim-controls" style={{ flexDirection: 'column', gap: '16px' }}>
+                            <div className="control-group" style={{ width: '100%' }}>
+                                <label className="control-label">Company Name *</label>
+                                <input
+                                    type="text"
+                                    className="control-select"
+                                    style={{ width: '100%' }}
+                                    placeholder="e.g., Acme Corp, Netflix, Your Startup"
+                                    value={company.name}
+                                    onChange={e => setCompany({ ...company, name: e.target.value })}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '16px', width: '100%' }}>
+                                <div className="control-group" style={{ flex: 1 }}>
+                                    <label className="control-label">Industry</label>
+                                    <select className="control-select" style={{ width: '100%' }}
+                                        value={company.industry}
+                                        onChange={e => setCompany({ ...company, industry: e.target.value })}>
+                                        <option value="">Select...</option>
+                                        <option value="E-commerce">🛒 E-commerce</option>
+                                        <option value="SaaS">💻 SaaS</option>
+                                        <option value="Gaming">🎮 Gaming</option>
+                                        <option value="FinTech">💰 FinTech</option>
+                                        <option value="Healthcare">🏥 Healthcare</option>
+                                        <option value="Media">📺 Media & Streaming</option>
+                                        <option value="Social">📱 Social Media</option>
+                                        <option value="Education">📚 Education</option>
+                                        <option value="Other">🔧 Other</option>
+                                    </select>
+                                </div>
+                                <div className="control-group" style={{ flex: 1 }}>
+                                    <label className="control-label">Contact Email</label>
+                                    <input
+                                        type="email"
+                                        className="control-select"
+                                        style={{ width: '100%' }}
+                                        placeholder="admin@company.com"
+                                        value={company.email}
+                                        onChange={e => setCompany({ ...company, email: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                            <button className="btn btn-primary" onClick={handleRegister}
+                                disabled={!company.name.trim()}
+                                style={{ padding: '12px 36px', fontSize: '0.9rem', alignSelf: 'flex-start' }}>
+                                🏢 Register Company & Continue →
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 1: Name Agent */}
+                {step === 1 && (
+                    <div className="sim-panel">
+                        <div className="sim-panel-title" style={{ marginBottom: '24px' }}>
+                            🤖 Step 2: Create Your AI Agent
+                        </div>
+                        <div style={{
+                            background: 'rgba(0,210,255,0.05)',
+                            border: '1px solid rgba(0,210,255,0.15)',
+                            borderRadius: '12px', padding: '16px', marginBottom: '20px',
+                        }}>
+                            <div style={{ color: '#00d2ff', fontWeight: 600, marginBottom: '4px' }}>
+                                🏢 {company.name} {company.industry ? `(${company.industry})` : ''}
+                            </div>
+                            <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>
+                                Creating agent for your company
+                            </div>
+                        </div>
+                        <div className="sim-controls" style={{ flexDirection: 'column', gap: '16px' }}>
+                            <div className="control-group" style={{ width: '100%' }}>
+                                <label className="control-label">Agent Name *</label>
+                                <input
+                                    type="text"
+                                    className="control-select"
+                                    style={{ width: '100%' }}
+                                    placeholder="e.g., BlackFriday Scaler, PeakTraffic Guardian, NightWatch..."
+                                    value={agentConfig.name}
+                                    onChange={e => setAgentConfig({ ...agentConfig, name: e.target.value })}
+                                />
+                                <div style={{ color: '#5a6180', fontSize: '0.72rem', marginTop: '4px' }}>
+                                    Give your agent a memorable name — this is how your team will identify it
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '16px', width: '100%', flexWrap: 'wrap' }}>
+                                <div className="control-group" style={{ flex: 1, minWidth: '200px' }}>
+                                    <label className="control-label">Algorithm</label>
+                                    <select className="control-select" style={{ width: '100%' }}
+                                        value={agentConfig.algorithm}
+                                        onChange={e => setAgentConfig({ ...agentConfig, algorithm: e.target.value })}>
+                                        <option value="dqn">🧠 DQN (Deep Q-Network) — Best for learning</option>
+                                        <option value="ppo">⚡ PPO (Proximal Policy) — Industry favorite</option>
+                                        <option value="threshold">📏 Threshold (Rule-based) — Simple & reliable</option>
+                                        <option value="predictive">🔮 Predictive (Trend-following) — Smart heuristic</option>
+                                    </select>
+                                </div>
+                                <div className="control-group" style={{ flex: 1, minWidth: '200px' }}>
+                                    <label className="control-label">Traffic Pattern</label>
+                                    <select className="control-select" style={{ width: '100%' }}
+                                        value={agentConfig.traffic}
+                                        onChange={e => setAgentConfig({ ...agentConfig, traffic: e.target.value })}>
+                                        <option value="steady">🟢 Steady — Smooth daily cycle</option>
+                                        <option value="spike">🟡 Spike — Flash sale events</option>
+                                        <option value="chaos">🔴 Chaos — Unpredictable surges</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="control-group" style={{ width: '100%' }}>
+                                <label className="control-label">Description (optional)</label>
+                                <input
+                                    type="text"
+                                    className="control-select"
+                                    style={{ width: '100%' }}
+                                    placeholder="Handles Black Friday traffic surges for our e-commerce platform"
+                                    value={agentConfig.description}
+                                    onChange={e => setAgentConfig({ ...agentConfig, description: e.target.value })}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button className="btn btn-secondary" onClick={() => setStep(0)}
+                                    style={{ padding: '12px 24px', fontSize: '0.85rem' }}>
+                                    ← Back
+                                </button>
+                                <button className="btn btn-primary" onClick={handleCreateAgent}
+                                    disabled={!agentConfig.name.trim()}
+                                    style={{ padding: '12px 36px', fontSize: '0.9rem' }}>
+                                    🤖 Create Agent & Configure →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 2: Configure Training */}
+                {step === 2 && (
+                    <div className="sim-panel">
+                        <div className="sim-panel-title" style={{ marginBottom: '24px' }}>
+                            ⚙️ Step 3: Configure Training
+                        </div>
+                        <div style={{
+                            background: 'rgba(118,75,162,0.08)',
+                            border: '1px solid rgba(118,75,162,0.2)',
+                            borderRadius: '12px', padding: '16px', marginBottom: '20px',
+                            display: 'flex', gap: '24px', flexWrap: 'wrap',
+                        }}>
+                            <div>
+                                <div style={{ color: '#764ba2', fontWeight: 600 }}>🏢 {company.name}</div>
+                                <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>Company</div>
+                            </div>
+                            <div>
+                                <div style={{ color: '#00d2ff', fontWeight: 600 }}>🤖 {agentConfig.name}</div>
+                                <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>Agent</div>
+                            </div>
+                            <div>
+                                <div style={{ color: '#f7971e', fontWeight: 600 }}>{agentConfig.algorithm.toUpperCase()}</div>
+                                <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>Algorithm</div>
+                            </div>
+                            <div>
+                                <div style={{ color: '#96c93d', fontWeight: 600 }}>
+                                    {agentConfig.traffic === 'steady' ? '🟢' : agentConfig.traffic === 'spike' ? '🟡' : '🔴'} {agentConfig.traffic}
+                                </div>
+                                <div style={{ color: '#8892b0', fontSize: '0.8rem' }}>Traffic</div>
+                            </div>
+                        </div>
+
+                        <div className="sim-controls" style={{ flexDirection: 'column', gap: '16px' }}>
+                            <div style={{ display: 'flex', gap: '16px', width: '100%', flexWrap: 'wrap' }}>
+                                <div className="control-group" style={{ flex: 1, minWidth: '160px' }}>
+                                    <label className="control-label">Training Steps</label>
+                                    <select className="control-select" style={{ width: '100%' }}
+                                        value={trainingConfig.steps}
+                                        onChange={e => setTrainingConfig({ ...trainingConfig, steps: Number(e.target.value) })}>
+                                        <option value={50000}>50,000 (Quick test)</option>
+                                        <option value={100000}>100,000 (Light)</option>
+                                        <option value={200000}>200,000 (Standard)</option>
+                                        <option value={500000}>500,000 (Thorough)</option>
+                                        <option value={1000000}>1,000,000 (Production)</option>
+                                    </select>
+                                </div>
+                                <div className="control-group" style={{ flex: 1, minWidth: '160px' }}>
+                                    <label className="control-label">Learning Rate</label>
+                                    <select className="control-select" style={{ width: '100%' }}
+                                        value={trainingConfig.learningRate}
+                                        onChange={e => setTrainingConfig({ ...trainingConfig, learningRate: Number(e.target.value) })}>
+                                        <option value={0.01}>0.01 (Aggressive)</option>
+                                        <option value={0.001}>0.001 (Standard)</option>
+                                        <option value={0.0003}>0.0003 (Conservative)</option>
+                                        <option value={0.0001}>0.0001 (Fine-tuning)</option>
+                                    </select>
+                                </div>
+                                <div className="control-group" style={{ flex: 1, minWidth: '120px' }}>
+                                    <label className="control-label">Seed</label>
+                                    <input
+                                        type="number"
+                                        className="control-select"
+                                        style={{ width: '100%' }}
+                                        value={trainingConfig.seed}
+                                        onChange={e => setTrainingConfig({ ...trainingConfig, seed: Number(e.target.value) })}
+                                        min={1} max={99999}
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                <button className="btn btn-secondary" onClick={() => setStep(1)}
+                                    style={{ padding: '12px 24px', fontSize: '0.85rem' }}>
+                                    ← Back
+                                </button>
+                                <button className="btn btn-primary" onClick={handleStartTraining}
+                                    style={{ padding: '12px 36px', fontSize: '0.9rem' }}>
+                                    🏋️ Start Training →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 3: Training Progress */}
+                {step === 3 && (
+                    <div className="sim-panel">
+                        <div className="sim-panel-title" style={{ marginBottom: '24px' }}>
+                            🏋️ Training in Progress...
+                        </div>
+                        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                            <div style={{ fontSize: '3rem', marginBottom: '20px' }}>
+                                {trainingProgress < 30 ? '🔄' : trainingProgress < 70 ? '⚡' : trainingProgress < 100 ? '🔥' : '✅'}
+                            </div>
+                            <div style={{
+                                fontSize: '2rem', fontWeight: 800,
+                                background: 'linear-gradient(135deg, #00d2ff, #764ba2)',
+                                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                                marginBottom: '16px',
+                            }}>
+                                {Math.floor(trainingProgress)}%
+                            </div>
+                            <div style={{
+                                width: '100%', maxWidth: '500px', margin: '0 auto 24px',
+                                height: '8px', borderRadius: '4px',
+                                background: 'rgba(255,255,255,0.06)',
+                                overflow: 'hidden',
+                            }}>
+                                <div style={{
+                                    width: `${trainingProgress}%`,
+                                    height: '100%',
+                                    background: 'linear-gradient(90deg, #00d2ff, #764ba2, #f7971e)',
+                                    borderRadius: '4px',
+                                    transition: 'width 0.3s ease',
+                                }} />
+                            </div>
+                            <div style={{ color: '#8892b0', fontSize: '0.85rem' }}>
+                                Training <strong style={{ color: '#ccd6f6' }}>{agentConfig.name}</strong> with{' '}
+                                <strong style={{ color: '#00d2ff' }}>{agentConfig.algorithm.toUpperCase()}</strong> on{' '}
+                                <strong style={{ color: '#f7971e' }}>{agentConfig.traffic}</strong> traffic
+                            </div>
+                            <div style={{ color: '#5a6180', fontSize: '0.75rem', marginTop: '8px' }}>
+                                {Math.floor(trainingConfig.steps * trainingProgress / 100).toLocaleString()} / {trainingConfig.steps.toLocaleString()} steps
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Step 4: Results */}
+                {step === 4 && trainResult && (
+                    <>
+                        <div className="sim-panel">
+                            <div className="sim-panel-title" style={{ marginBottom: '24px' }}>
+                                🏆 Training Complete!
+                            </div>
+
+                            <div style={{
+                                background: 'linear-gradient(135deg, rgba(0,210,255,0.08), rgba(118,75,162,0.08))',
+                                border: '1px solid rgba(0,210,255,0.15)',
+                                borderRadius: '16px', padding: '24px', marginBottom: '24px',
+                                textAlign: 'center',
+                            }}>
+                                <div style={{ fontSize: '1.2rem', color: '#8892b0', marginBottom: '4px' }}>
+                                    Your AI Agent
+                                </div>
+                                <div style={{
+                                    fontSize: '2rem', fontWeight: 800,
+                                    background: 'linear-gradient(135deg, #00d2ff, #3a7bd5)',
+                                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                                    marginBottom: '8px',
+                                }}>
+                                    {trainResult.agentName}
+                                </div>
+                                <div style={{ color: '#5a6180', fontSize: '0.85rem' }}>
+                                    by {trainResult.companyName} · {trainResult.algorithm.toUpperCase()} · v{trainResult.version}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid-4" style={{ marginBottom: '24px', marginTop: '24px' }}>
+                            <MetricCard value={trainResult.scores.total.toFixed(3)} label="Overall Score" gradient="gradient-cyan" icon="🏆" />
+                            <MetricCard value={`$${trainResult.metrics.totalCost}`} label="Total Cost" gradient="gradient-green" icon="💰" />
+                            <MetricCard value={`${trainResult.metrics.dropRate}%`} label="Drop Rate" gradient="gradient-red" icon="❌" />
+                            <MetricCard value={`${trainResult.metrics.avgLatency}ms`} label="Avg Latency" gradient="gradient-orange" icon="⏱️" />
+                        </div>
+
+                        <div className="grid-4" style={{ marginBottom: '24px' }}>
+                            <MetricCard value={trainResult.scores.sla.toFixed(3)} label="SLA Score (40%)" gradient="gradient-cyan" icon="🛡️" />
+                            <MetricCard value={trainResult.scores.cost.toFixed(3)} label="Cost Score (30%)" gradient="gradient-green" icon="📉" />
+                            <MetricCard value={trainResult.scores.latency.toFixed(3)} label="Latency Score (20%)" gradient="gradient-orange" icon="⚡" />
+                            <MetricCard value={trainResult.scores.stability.toFixed(3)} label="Stability (10%)" gradient="gradient-purple" icon="📐" />
+                        </div>
+
+                        {/* Cross-task evaluation */}
+                        {trainResult.allResults && (
+                            <div className="sim-panel" style={{ marginTop: '24px' }}>
+                                <div className="sim-panel-title" style={{ marginBottom: '20px' }}>
+                                    📊 Cross-Task Evaluation
+                                </div>
+                                <table className="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Task</th>
+                                            <th>Score</th>
+                                            <th>SLA</th>
+                                            <th>Cost</th>
+                                            <th>Latency</th>
+                                            <th>Stability</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.entries(trainResult.allResults).map(([task, scores]) => (
+                                            <tr key={task}>
+                                                <td style={{ fontWeight: 600 }}>
+                                                    {task === 'steady' ? '🟢' : task === 'spike' ? '🟡' : '🔴'} {task.toUpperCase()}
+                                                </td>
+                                                <td><ScoreBadge score={scores.total} /></td>
+                                                <td className="mono">{scores.sla.toFixed(3)}</td>
+                                                <td className="mono">{scores.cost.toFixed(3)}</td>
+                                                <td className="mono">{scores.latency.toFixed(3)}</td>
+                                                <td className="mono">{scores.stability.toFixed(3)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* Deploy Instructions */}
+                        <div className="sim-panel" style={{ marginTop: '24px' }}>
+                            <div className="sim-panel-title" style={{ marginBottom: '16px' }}>
+                                🚀 Deploy Your Agent
+                            </div>
+                            <div className="code-block">
+                                <div className="code-block-header">DEPLOYMENT COMMANDS</div>
+                                <code style={{ whiteSpace: 'pre-wrap', fontSize: '0.82rem' }}>
+                                    {`# Step 1: Install dependencies
+pip install -r requirements.txt
+
+# Step 2: Register your company & agent (CLI)
+python build_agent.py register --company "${trainResult.companyName}"
+python build_agent.py create --company "${trainResult.companyName}" --agent "${trainResult.agentName}" --algo ${trainResult.algorithm}
+
+# Step 3: Train (on your actual server)
+python build_agent.py train --company "${trainResult.companyName}" --agent "${trainResult.agentName}" --steps ${trainingConfig.steps}
+
+# Step 4: Start the Ingress API (in one terminal)
+python scripts/ingress_server.py
+
+# Step 5: Deploy agent (in another terminal)
+python build_agent.py deploy --company "${trainResult.companyName}" --agent "${trainResult.agentName}"
+
+# Step 6: Your infrastructure polls scaling decisions
+curl http://localhost:8000/decision`}
+                                </code>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                            <button className="btn btn-primary" onClick={handleExportAgent}
+                                style={{ padding: '12px 36px', fontSize: '0.9rem' }}>
+                                📦 Download Agent Export
+                            </button>
+                            <button className="btn btn-secondary" onClick={resetWizard}
+                                style={{ padding: '12px 24px', fontSize: '0.85rem' }}>
+                                ➕ Create Another Agent
+                            </button>
+                        </div>
+                    </>
+                )}
+
+                {/* Agent Registry — Always visible */}
+                {registeredAgents.length > 0 && (
+                    <div className="sim-panel" style={{ marginTop: '48px' }}>
+                        <div className="sim-panel-title" style={{ marginBottom: '20px' }}>
+                            📋 Your Agent Registry ({registeredAgents.length} agents)
+                        </div>
+                        <table className="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Agent Name</th>
+                                    <th>Company</th>
+                                    <th>Algorithm</th>
+                                    <th>Traffic</th>
+                                    <th>Score</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {registeredAgents.map((a, i) => (
+                                    <tr key={i}>
+                                        <td style={{ fontWeight: 600, color: '#00d2ff' }}>🤖 {a.agentName}</td>
+                                        <td>{a.companyName}</td>
+                                        <td className="mono">{a.algorithm.toUpperCase()}</td>
+                                        <td>
+                                            {a.traffic === 'steady' ? '🟢' : a.traffic === 'spike' ? '🟡' : '🔴'} {a.traffic}
+                                        </td>
+                                        <td>{a.scores ? <ScoreBadge score={a.scores.total} /> : '—'}</td>
+                                        <td>
+                                            <span className={`tag tag-${a.status === 'trained' ? 'easy' : 'rl'}`}>
+                                                {a.status}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button
+                                                onClick={() => handleDeleteAgent(i)}
+                                                style={{
+                                                    background: 'rgba(239,68,68,0.1)',
+                                                    border: '1px solid rgba(239,68,68,0.3)',
+                                                    color: '#ef4444',
+                                                    borderRadius: '6px', padding: '4px 10px',
+                                                    cursor: 'pointer', fontSize: '0.75rem',
+                                                }}
+                                            >
+                                                🗑️ Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </section>
+    );
+};
+
+
+// ═══════════════════════════════════════════════════════════════
 // Footer
 // ═══════════════════════════════════════════════════════════════
 
@@ -839,7 +1481,7 @@ export default function App() {
 
     // Track scroll position for active nav
     useEffect(() => {
-        const sections = ['home', 'simulator', 'compare', 'architecture'];
+        const sections = ['home', 'simulator', 'compare', 'architecture', 'portal'];
         const handleScroll = () => {
             const scrollPos = window.scrollY + 150;
             for (let i = sections.length - 1; i >= 0; i--) {
@@ -862,7 +1504,9 @@ export default function App() {
             <Simulator />
             <CompareSection />
             <Architecture />
+            <CompanyPortal />
             <Footer />
         </>
     );
 }
+

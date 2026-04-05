@@ -1,4 +1,4 @@
-.PHONY: install install-dev test lint format validate run-baseline run-llm train-dqn train-ppo run-ingress clean ready docker-build docker-run help
+.PHONY: install install-dev test lint format validate run-baseline run-llm train-dqn train-ppo run-ingress clean ready docker-build docker-run help register create-agent train-agent evaluate-agent export-agent deploy-agent list-agents
 
 # Variables
 PYTHON       = python3
@@ -7,6 +7,13 @@ PYTEST       = $(PYTHON) -m pytest
 VALIDATE     = validate.py
 BASELINE     = baseline_inference.py
 COVERAGE_MIN = 70
+
+# Default company/agent (override with: make create-agent COMPANY="My Corp" AGENT="My Bot")
+COMPANY      ?= MyCompany
+AGENT        ?= AutoScaler
+ALGO         ?= dqn
+TRAFFIC      ?= steady
+STEPS        ?= 200000
 
 # ── Help ────────────────────────────────────────────────────────────────────
 help:
@@ -29,7 +36,16 @@ help:
 	@echo "    run-llm          Run LLM agent via NVIDIA NIM (needs API key in .env)"
 	@echo "    run-ingress      Start the production Ingress API server"
 	@echo ""
-	@echo "  Training:"
+	@echo "  🏢 Company Agent Builder:"
+	@echo "    register         Register a company:     make register COMPANY=\"Acme Corp\""
+	@echo "    create-agent     Create a named agent:   make create-agent COMPANY=\"Acme\" AGENT=\"Scaler v1\""
+	@echo "    train-agent      Train your agent:       make train-agent COMPANY=\"Acme\" AGENT=\"Scaler v1\""
+	@echo "    evaluate-agent   Evaluate performance:   make evaluate-agent COMPANY=\"Acme\" AGENT=\"Scaler v1\""
+	@echo "    export-agent     Export for deployment:   make export-agent COMPANY=\"Acme\" AGENT=\"Scaler v1\""
+	@echo "    deploy-agent     Deploy to production:    make deploy-agent COMPANY=\"Acme\" AGENT=\"Scaler v1\""
+	@echo "    list-agents      List all agents:         make list-agents"
+	@echo ""
+	@echo "  Training (standalone):"
 	@echo "    train-dqn        Train DQN agent on steady task"
 	@echo "    train-ppo        Train PPO agent on steady task"
 	@echo ""
@@ -83,6 +99,28 @@ train-dqn:
 train-ppo:
 	$(PYTHON) agent/train.py --task steady --algo ppo --steps 200000
 
+# ── Company Agent Builder ───────────────────────────────────────────────────
+register:
+	$(PYTHON) build_agent.py register --company "$(COMPANY)"
+
+create-agent:
+	$(PYTHON) build_agent.py create --company "$(COMPANY)" --agent "$(AGENT)" --algo $(ALGO) --traffic $(TRAFFIC)
+
+train-agent:
+	$(PYTHON) build_agent.py train --company "$(COMPANY)" --agent "$(AGENT)" --steps $(STEPS)
+
+evaluate-agent:
+	$(PYTHON) build_agent.py evaluate --company "$(COMPANY)" --agent "$(AGENT)"
+
+export-agent:
+	$(PYTHON) build_agent.py export --company "$(COMPANY)" --agent "$(AGENT)"
+
+deploy-agent:
+	$(PYTHON) build_agent.py deploy --company "$(COMPANY)" --agent "$(AGENT)"
+
+list-agents:
+	$(PYTHON) build_agent.py list
+
 # ── Docker ──────────────────────────────────────────────────────────────────
 docker-build:
 	docker build -t cloud-cost-optimizer .
@@ -102,5 +140,6 @@ clean:
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 	rm -rf .pytest_cache .coverage htmlcov coverage.xml
 	rm -rf models/checkpoints models/best models/logs models/tb_logs
+	rm -rf exports/
 	rm -f sim_result.json llm_baseline_results.json
 	@echo "  🧹 Cleaned!"
